@@ -257,6 +257,24 @@ class CodexAuthManager:
     def _platform_cooldown_active(self) -> bool:
         return time.time() < self._platform_cooldown_until
 
+    def _platform_api_available(self) -> bool:
+        if self._platform_cooldown_active():
+            return False
+
+        try:
+            auth = self._load_auth()
+        except CodexBridgeError:
+            return False
+
+        if auth.get("OPENAI_API_KEY"):
+            return True
+
+        tokens = auth.get("tokens") if isinstance(auth.get("tokens"), dict) else {}
+        claim_subset = _token_claims_subset(tokens.get("id_token"))
+        return bool(claim_subset.get("organization_id")) and bool(
+            claim_subset.get("project_id")
+        )
+
     def refresh_chatgpt_tokens(self) -> dict[str, Any]:
         auth = self._load_auth()
         tokens = self._chatgpt_tokens(auth)
@@ -675,6 +693,13 @@ class CodexAuthManager:
         }
 
     def create_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self._platform_api_available():
+            if not self.cli_available():
+                raise CodexBridgeError(
+                    "OpenAI platform API is unavailable and Codex CLI is not installed"
+                )
+            return self._run_codex_exec(payload)
+
         try:
             response = self._platform_request(
                 "POST",
@@ -753,9 +778,7 @@ class CodexAuthManager:
         auth = self._load_auth()
         tokens = auth.get("tokens") if isinstance(auth.get("tokens"), dict) else {}
         claim_subset = _token_claims_subset(tokens.get("id_token"))
-        platform_ready = bool(claim_subset.get("organization_id")) and bool(
-            claim_subset.get("project_id")
-        )
+        platform_ready = self._platform_api_available()
         preferred_backend = "openai_api" if platform_ready and not self._platform_cooldown_active() else "codex_cli"
         return {
             "status": "ok",

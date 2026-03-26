@@ -159,6 +159,56 @@ def main():
     parser.add_argument("--idea_max_items", type=int, default=15, help="Max items to feed into idea generator")
     parser.add_argument("--idea_count", type=int, default=5, help="Number of ideas to generate")
 
+    # Cross-source report config
+    parser.add_argument("--generate_report", action="store_true", help="Generate a personalized cross-source report")
+    parser.add_argument(
+        "--report_profile",
+        type=str,
+        default=env_str("REPORT_PROFILE_FILE"),
+        help="Profile file used for cross-source report generation",
+    )
+    parser.add_argument(
+        "--report_title",
+        type=str,
+        default=env_str("REPORT_TITLE", "Daily Personal Briefing"),
+        help="Title for the cross-source report",
+    )
+    parser.add_argument(
+        "--report_min_score",
+        type=float,
+        default=env_float("REPORT_MIN_SCORE", 4.0),
+        help="Minimum item score to include in cross-source report curation",
+    )
+    parser.add_argument(
+        "--report_max_items",
+        type=int,
+        default=env_int("REPORT_MAX_ITEMS", 18),
+        help="Maximum number of curated items fed into the report generator",
+    )
+    parser.add_argument(
+        "--report_theme_count",
+        type=int,
+        default=env_int("REPORT_THEME_COUNT", 4),
+        help="Maximum number of top themes in the cross-source report",
+    )
+    parser.add_argument(
+        "--report_prediction_count",
+        type=int,
+        default=env_int("REPORT_PREDICTION_COUNT", 4),
+        help="Maximum number of predictions in the cross-source report",
+    )
+    parser.add_argument(
+        "--report_idea_count",
+        type=int,
+        default=env_int("REPORT_IDEA_COUNT", 4),
+        help="Maximum number of ideas in the cross-source report",
+    )
+    parser.add_argument(
+        "--send_report_email",
+        action="store_true",
+        help="Send the generated cross-source report as an email",
+    )
+
     # Register each source's specific arguments
     for source_name, source_cls in SOURCE_REGISTRY.items():
         source_cls.add_arguments(parser)
@@ -170,6 +220,8 @@ def main():
         raise ValueError("--generate_ideas requires --save so ideas.json is available for /idea-from-daily")
     if args.generate_ideas and not os.path.exists(args.researcher_profile):
         raise FileNotFoundError(f"Researcher profile not found: {args.researcher_profile}")
+    if args.report_profile and not os.path.exists(args.report_profile):
+        raise FileNotFoundError(f"Report profile not found: {args.report_profile}")
     provider = args.provider.lower()
     auth_mode = args.auth_mode.lower()
     resolved_base_url = args.base_url
@@ -254,6 +306,44 @@ def main():
             source = source_cls(source_args, llm_config, common_config)
             recs = source.send_email(email_config)
             all_recs[source_name] = recs or []
+
+        if args.generate_report:
+            print(f"\n{'='*60}")
+            print("Generating cross-source report...")
+            print(f"{'='*60}")
+
+            from report_generator import ReportGenerator
+
+            report_profile_path = args.report_profile
+            if not report_profile_path:
+                if os.path.exists(args.researcher_profile):
+                    report_profile_path = args.researcher_profile
+                else:
+                    report_profile_path = args.description
+
+            with open(report_profile_path, "r", encoding="utf-8") as f:
+                report_profile_text = f.read()
+
+            generator = ReportGenerator(
+                all_recs=all_recs,
+                profile_text=report_profile_text,
+                llm_config=llm_config,
+                common_config=common_config,
+                report_title=args.report_title,
+                min_score=args.report_min_score,
+                max_items=args.report_max_items,
+                theme_count=args.report_theme_count,
+                prediction_count=args.report_prediction_count,
+                idea_count=args.report_idea_count,
+            )
+            report = generator.generate()
+            if report:
+                generator.save(report)
+                generator.render_email(report)
+                if args.send_report_email:
+                    generator.send_email(report, email_config)
+            else:
+                print("No cross-source report generated.")
 
         if args.generate_ideas:
             print(f"\n{'='*60}")

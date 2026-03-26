@@ -7,6 +7,7 @@ unreliable in practice.
 """
 
 import os
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -147,6 +148,24 @@ def _parse_tweet_item(item: dict, fallback_username: str, created_iso: str) -> d
     }
 
 
+def _timeline_items_look_degraded(timeline: list[dict]) -> bool:
+    """Detect provider responses that return a timeline shell filled with null items."""
+    if not timeline:
+        return False
+
+    inspected = [item for item in timeline[:5] if isinstance(item, dict)]
+    if not inspected:
+        return False
+
+    def _has_core_fields(item: dict) -> bool:
+        tweet_id = item.get("tweet_id") or item.get("id") or item.get("id_str")
+        text = item.get("text") or item.get("full_text")
+        created_at = item.get("created_at")
+        return bool(tweet_id and text and created_at)
+
+    return not any(_has_core_fields(item) for item in inspected)
+
+
 def search_people_rapidapi(
     query: str,
     api_key: str,
@@ -223,19 +242,40 @@ def fetch_user_tweets_rapidapi(
     since_hours: int = 24,
     max_tweets: int = 20,
     timeout: int = DEFAULT_TIMEOUT,
+    retries: int = 3,
 ) -> list[dict]:
     """Fetch recent tweets from an account timeline via RapidAPI."""
-    try:
-        data = _rapidapi_get(
-            "timeline.php",
-            api_key,
-            api_host,
-            timeout=timeout,
-            screenname=username,
-            count=max_tweets,
-        )
-    except Exception as e:
-        print(f"[rapidapi] Error fetching tweets for @{username}: {e}")
+    data = None
+    for attempt in range(1, max(retries, 1) + 1):
+        try:
+            candidate = _rapidapi_get(
+                "timeline.php",
+                api_key,
+                api_host,
+                timeout=timeout,
+                screenname=username,
+                count=max_tweets,
+            )
+        except Exception as e:
+            print(f"[rapidapi] Error fetching tweets for @{username} (attempt {attempt}/{retries}): {e}")
+            if attempt < retries:
+                time.sleep(0.8 * attempt)
+                continue
+            return []
+
+        timeline = candidate.get("timeline") or []
+        if _timeline_items_look_degraded(timeline):
+            print(
+                f"[rapidapi] Degraded timeline payload for @{username} "
+                f"(attempt {attempt}/{retries}); retrying..."
+            )
+            if attempt < retries:
+                time.sleep(0.8 * attempt)
+                continue
+        data = candidate
+        break
+
+    if data is None:
         return []
 
     since_time = datetime.now(timezone.utc) - timedelta(hours=since_hours)

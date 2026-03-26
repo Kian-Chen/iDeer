@@ -149,6 +149,9 @@ def get_summary_html(content: str, rgb: str = "36,41,46") -> str:
       }}
     </style>
     """
+    content = str(content or "").strip()
+    if 'class="summary-wrapper"' in content or "class='summary-wrapper'" in content:
+        return f"{style}\n{content}"
     return f'{style}\n<div class="summary-wrapper">\n{content}\n</div>'
 
 

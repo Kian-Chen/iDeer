@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import re
+from datetime import datetime
 
 from base_source import BaseSource
 from config import LLMConfig, CommonConfig
@@ -1755,13 +1756,16 @@ Return JSON:
             is_quote=item.get("is_quote", False),
             quoted_text=item.get("quoted_text", ""),
             quoted_author=item.get("quoted_author", ""),
+            created_at=item.get("created_at", ""),
+            key_points=item.get("key_points", []),
+            score=float(item.get("score", 0) or 0),
         )
 
     def get_item_cache_id(self, item: dict) -> str:
         return f"tweet_{item['tweet_id']}"
 
     def get_section_header(self) -> str:
-        return '<div class="section-title" style="border-bottom-color: #1d9bf0;">𝕏 X/Twitter Daily</div>'
+        return '<div class="section-title" style="border-bottom-color: #1d9bf0;">𝕏 X/Twitter 关键动态</div>'
 
     def get_theme_color(self) -> str:
         return "29,155,240"
@@ -1769,39 +1773,81 @@ Return JSON:
     def get_max_items(self) -> int:
         return self.max_tweets
 
+    @staticmethod
+    def _format_report_time(created_at: str) -> str:
+        if not created_at:
+            return ""
+        try:
+            return datetime.fromisoformat(created_at).astimezone().strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            return created_at
+
     def build_summary_overview(self, recommendations: list[dict]) -> str:
         overview = ""
         for i, item in enumerate(recommendations):
             engagement = f"❤️ {item.get('likes', 0)} | 🔁 {item.get('retweets', 0)} | 💬 {item.get('replies', 0)}"
+            key_points = "；".join(item.get("key_points", [])[:3])
             overview += (
-                f"{i + 1}. @{item['author_username']} [{item.get('category', '')}] - "
-                f"{item['summary']} ({engagement})\n"
+                f"{i + 1}. @{item['author_username']} | {item.get('author_name', item['author_username'])} | "
+                f"类型={item.get('category', '')} | 分数={item.get('score', 0)} | "
+                f"时间={self._format_report_time(item.get('created_at', ''))} | "
+                f"摘要={item['summary']} | 要点={key_points} | 互动={engagement}\n"
             )
         return overview
 
     def get_summary_prompt_template(self) -> str:
         return """
-            请直接输出一段 HTML 片段，严格遵循以下结构，不要包含 JSON、Markdown 或多余说明：
-            <div class="summary-wrapper">
+            请直接输出一段 HTML 片段，不要包含 JSON、Markdown 或多余说明。
+            不要再输出外层 <div class="summary-wrapper">，系统会自动包裹。
+            请使用下面这些 section 结构：
               <div class="summary-section">
-                <h2>今日动态概览</h2>
-                <p>总结今天关注的 X/Twitter 关键账号的主要动态和讨论热点...</p>
+                <h2>今日一览</h2>
+                <p>用 2-4 句话总结今天 X/Twitter 上最值得知道的整体变化，优先写“谁说了什么、哪些机构有动作、哪些话题升温”。</p>
               </div>
               <div class="summary-section">
-                <h2>重点推文</h2>
+                <h2>必读动态</h2>
                 <ol class="summary-list">
                   <li class="summary-item">
-                    <div class="summary-item__header"><span class="summary-item__title">@用户名: 推文摘要</span><span class="summary-pill">类型</span></div>
-                    <p><strong>推荐理由：</strong>...</p>
-                    <p><strong>关键亮点：</strong>...</p>
+                    <div class="summary-item__header"><span class="summary-item__title">@用户名 / 机构：一句话概括</span><span class="summary-pill">类型</span></div>
+                    <p><strong>发生了什么：</strong>...</p>
+                    <p><strong>为什么值得看：</strong>...</p>
+                    <p class="summary-item__stars"><strong>互动：</strong>❤️ / 🔁 / 💬 ...</p>
                   </li>
                 </ol>
               </div>
               <div class="summary-section">
-                <h2>补充观察</h2>
-                <p>值得关注的讨论趋势或新兴话题...</p>
+                <h2>延伸观察</h2>
+                <p>补充今天跨账号的共同趋势、争议点或后续值得盯的方向。</p>
               </div>
-            </div>
 
-            用中文撰写内容，重点推文部分建议返回 3-5 条。
+            用中文撰写内容。
+            “必读动态”建议返回 4-6 条，优先选择真正有信息增量的账号或机构动作，不要重复同一件事。
         """
+
+    def _save_markdown(self, recommendations: list[dict]):
+        save_path = os.path.join(self.save_dir, f"{self.run_date}.md")
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write("# X/Twitter 关键动态日报\n")
+            f.write(f"## 日期：{self.run_date}\n\n")
+            for i, item in enumerate(recommendations, 1):
+                name = item.get("author_name", item.get("author_username", "unknown"))
+                handle = item.get("author_username", "unknown")
+                f.write(f"### {i}. {name} (@{handle})\n")
+                f.write(
+                    f"- 类型：{item.get('category', '日常')} | 相关度：{item.get('score', 0):.1f}/10"
+                    f" | 时间：{self._format_report_time(item.get('created_at', '')) or '未知'}\n"
+                )
+                f.write(
+                    f"- 互动：❤️ {item.get('likes', 0)} | 🔁 {item.get('retweets', 0)} | 💬 {item.get('replies', 0)}\n"
+                )
+                f.write(f"- 摘要：{item.get('summary', 'N/A')}\n")
+                key_points = item.get("key_points", [])
+                if key_points:
+                    f.write("- 要点：\n")
+                    for point in key_points[:3]:
+                        f.write(f"  - {point}\n")
+                excerpt = str(item.get("text", "")).replace("\n", " ").strip()
+                if excerpt:
+                    excerpt = excerpt[:180] + "..." if len(excerpt) > 180 else excerpt
+                    f.write(f"- 原文摘录：{excerpt}\n")
+                f.write(f"- 链接：{item.get('url', '')}\n\n")

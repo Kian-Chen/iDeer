@@ -113,6 +113,11 @@ def main():
     )
     parser.add_argument("--save", action="store_true", help="Save results to history")
     parser.add_argument("--save_dir", type=str, default="./history", help="History save directory")
+    parser.add_argument(
+        "--skip_source_emails",
+        action="store_true",
+        help="Generate source outputs without sending per-source emails",
+    )
 
     # Idea generation config
     parser.add_argument("--generate_ideas", action="store_true", help="Generate research ideas from recommendations")
@@ -243,7 +248,11 @@ def main():
         source_args = source_cls.extract_args(args)
 
         source = source_cls(source_args, llm_config, common_config)
-        recs = source.send_email(email_config)
+        if args.skip_source_emails:
+            recs = source.get_recommendations()
+            source.render_email(recs)
+        else:
+            recs = source.send_email(email_config)
         all_recs[source_name] = recs or []
 
     if args.generate_report:

@@ -663,6 +663,8 @@ I'm not interested in:
       document.getElementById('config-hf-max-models').value = c.hf_max_models || 15;
       document.getElementById('config-description').value = c.description || '';
       document.getElementById('config-researcher-profile').value = c.researcher_profile || '';
+      document.getElementById('config-twitter-api-key').value = c.x_rapidapi_key || '';
+      document.getElementById('config-twitter-accounts').value = c.x_accounts || '';
 
       if (c.hf_content_types) {
         document.getElementById('config-hf-papers').checked = c.hf_content_types.includes('papers');
@@ -673,6 +675,12 @@ I'm not interested in:
     function updateSourceDisplay() {
       document.getElementById('github-lang-display').textContent = state.config.gh_languages || 'All';
       document.getElementById('github-time-display').textContent = state.config.gh_since || 'Daily';
+      const accountCount = (state.config.x_accounts || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .length;
+      document.getElementById('twitter-accounts-count').textContent = `${accountCount} 配置`;
     }
 
     // Save Config
@@ -699,7 +707,9 @@ I'm not interested in:
         hf_max_papers: parseInt(document.getElementById('config-hf-max-papers').value),
         hf_max_models: parseInt(document.getElementById('config-hf-max-models').value),
         description: document.getElementById('config-description').value,
-        researcher_profile: document.getElementById('config-researcher-profile').value
+        researcher_profile: document.getElementById('config-researcher-profile').value,
+        x_rapidapi_key: document.getElementById('config-twitter-api-key').value,
+        x_accounts: document.getElementById('config-twitter-accounts').value
       };
 
       try {
@@ -730,7 +740,8 @@ I'm not interested in:
       // Disable buttons
       document.querySelectorAll('button[id^="btn-"]').forEach(btn => btn.disabled = true);
 
-      const wsUrl = `ws://${window.location.host}/ws/run`;
+      const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${wsScheme}://${window.location.host}/ws/run`;
       state.ws = new WebSocket(wsUrl);
 
       state.ws.onopen = () => {

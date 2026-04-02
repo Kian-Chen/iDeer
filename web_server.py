@@ -3,24 +3,59 @@ Daily Recommender Web Backend
 FastAPI + WebSocket 实时日志
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
-import os
-import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Literal
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from fetchers.profile_fetcher import build_profile_text_from_urls
+
+
 # 项目根目录
 PROJECT_ROOT = Path(__file__).parent.absolute()
 HISTORY_DIR = PROJECT_ROOT / "history"
 CONFIG_FILE = PROJECT_ROOT / ".web_config.json"
+ENV_FILE = PROJECT_ROOT / ".env"
+PUBLIC_UI_FILE = PROJECT_ROOT / "public-web-ui.html"
+ADMIN_UI_FILE = PROJECT_ROOT / "web-ui.html"
+DESCRIPTION_FILE = PROJECT_ROOT / "profiles" / "description.txt"
+RESEARCHER_PROFILE_FILE = PROJECT_ROOT / "profiles" / "researcher_profile.md"
+TWITTER_ACCOUNTS_FILE = PROJECT_ROOT / "profiles" / "x_accounts.txt"
+GITHUB_REPO_URL = "https://github.com/LiYu0524/daily-recommender"
+
+DEFAULT_CONFIG = {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "base_url": "",
+    "api_key": "",
+    "temperature": 0.5,
+    "smtp_server": "",
+    "smtp_port": 465,
+    "sender": "",
+    "receiver": "",
+    "smtp_password": "",
+    "gh_languages": "all",
+    "gh_since": "daily",
+    "gh_max_repos": 30,
+    "hf_content_types": ["papers", "models"],
+    "hf_max_papers": 30,
+    "hf_max_models": 15,
+    "description": "",
+    "researcher_profile": "",
+    "x_rapidapi_key": "",
+    "x_rapidapi_host": "twitter-api45.p.rapidapi.com",
+    "x_accounts": "",
+}
 
 app = FastAPI(title="Daily Recommender API", version="1.0.0")
 
@@ -32,6 +67,161 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _read_text_if_exists(path: Path) -> str:
+    if path.exists():
+        return path.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def _normalize_multiline_text(value: str) -> str:
+    lines = [line.rstrip() for line in str(value or "").replace("\r\n", "\n").split("\n")]
+    return "\n".join(lines).strip()
+
+
+def _load_env_fallbacks() -> dict:
+    if not ENV_FILE.exists():
+        return {}
+
+    raw_values: dict[str, str] = {}
+    for raw_line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key.startswith("export "):
+            key = key[len("export "):].strip()
+        if value and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        raw_values[key] = value
+
+    fallback: dict[str, object] = {}
+    mapping = {
+        "provider": "PROVIDER",
+        "model": "MODEL_NAME",
+        "base_url": "BASE_URL",
+        "api_key": "API_KEY",
+        "smtp_server": "SMTP_SERVER",
+        "sender": "SMTP_SENDER",
+        "receiver": "SMTP_RECEIVER",
+        "smtp_password": "SMTP_PASSWORD",
+        "gh_languages": "GH_LANGUAGES",
+        "gh_since": "GH_SINCE",
+        "gh_max_repos": "GH_MAX_REPOS",
+        "hf_max_papers": "HF_MAX_PAPERS",
+        "hf_max_models": "HF_MAX_MODELS",
+        "x_rapidapi_key": "X_RAPIDAPI_KEY",
+        "x_rapidapi_host": "X_RAPIDAPI_HOST",
+    }
+    for config_key, env_key in mapping.items():
+        value = raw_values.get(env_key, "")
+        if value:
+            fallback[config_key] = value
+
+    if raw_values.get("TEMPERATURE"):
+        fallback["temperature"] = float(raw_values["TEMPERATURE"])
+    if raw_values.get("SMTP_PORT"):
+        fallback["smtp_port"] = int(raw_values["SMTP_PORT"])
+    if raw_values.get("GH_MAX_REPOS"):
+        fallback["gh_max_repos"] = int(raw_values["GH_MAX_REPOS"])
+    if raw_values.get("HF_MAX_PAPERS"):
+        fallback["hf_max_papers"] = int(raw_values["HF_MAX_PAPERS"])
+    if raw_values.get("HF_MAX_MODELS"):
+        fallback["hf_max_models"] = int(raw_values["HF_MAX_MODELS"])
+    if raw_values.get("HF_CONTENT_TYPES"):
+        fallback["hf_content_types"] = [item for item in raw_values["HF_CONTENT_TYPES"].split() if item]
+
+    return fallback
+
+
+def load_config_data() -> dict:
+    config = dict(DEFAULT_CONFIG)
+    env_fallbacks = _load_env_fallbacks()
+    config.update(env_fallbacks)
+
+    if CONFIG_FILE.exists():
+        content = CONFIG_FILE.read_text(encoding="utf-8").strip()
+        if content:
+            config.update(json.loads(content))
+
+    file_backed_values = {
+        "description": _read_text_if_exists(DESCRIPTION_FILE),
+        "researcher_profile": _read_text_if_exists(RESEARCHER_PROFILE_FILE),
+        "x_accounts": _read_text_if_exists(TWITTER_ACCOUNTS_FILE),
+    }
+    for key, value in file_backed_values.items():
+        if value:
+            config[key] = value
+
+    if not config.get("hf_content_types"):
+        config["hf_content_types"] = ["papers", "models"]
+    if not config.get("x_rapidapi_host"):
+        config["x_rapidapi_host"] = DEFAULT_CONFIG["x_rapidapi_host"]
+
+    return config
+
+
+def _write_text_file(path: Path, content: str, delete_if_empty: bool = False) -> None:
+    normalized = _normalize_multiline_text(content)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if normalized:
+        path.write_text(normalized + "\n", encoding="utf-8")
+        return
+    if delete_if_empty:
+        if path.exists():
+            path.unlink()
+        return
+    path.write_text("", encoding="utf-8")
+
+
+def _append_arg(cmd: list[str], flag: str, value: str | int | float | None) -> None:
+    if value in (None, ""):
+        return
+    cmd.extend([flag, str(value)])
+
+
+def _collect_generated_files(result_dirs: list[Path]) -> list[dict]:
+    generated_files = []
+
+    for dir_path in result_dirs:
+        if not dir_path.exists():
+            continue
+
+        for md_file in dir_path.glob("*.md"):
+            content = md_file.read_text(encoding="utf-8")
+            generated_files.append({
+                "type": "markdown",
+                "name": md_file.name,
+                "content": content,
+                "source": dir_path.parent.name,
+            })
+
+        for html_file in dir_path.glob("*.html"):
+            generated_files.append({
+                "type": "html",
+                "name": html_file.name,
+                "url": f"/api/file/{dir_path.parent.name}/{dir_path.name}/{html_file.name}",
+                "source": dir_path.parent.name,
+            })
+
+        json_dir = dir_path / "json"
+        if json_dir.exists():
+            items = []
+            for json_file in json_dir.glob("*.json"):
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                items.append(data)
+            if items:
+                generated_files.append({
+                    "type": "json_list",
+                    "name": f"{dir_path.parent.name}_items",
+                    "items": items,
+                    "source": dir_path.parent.name,
+                })
+
+    return generated_files
 
 
 # ============== Models ==============
@@ -50,18 +240,26 @@ class Config(BaseModel):
     gh_languages: str = "all"
     gh_since: str = "daily"
     gh_max_repos: int = 30
-    hf_content_types: list = ["papers", "models"]
+    hf_content_types: list[str] = ["papers", "models"]
     hf_max_papers: int = 30
     hf_max_models: int = 15
     description: str = ""
     researcher_profile: str = ""
+    x_rapidapi_key: str = ""
+    x_rapidapi_host: str = "twitter-api45.p.rapidapi.com"
+    x_accounts: str = ""
 
 
 class RunRequest(BaseModel):
-    sources: list[str]  # github, huggingface, twitter
+    sources: list[str]
     generate_report: bool = False
     generate_ideas: bool = False
     save: bool = True
+    receiver: str = ""
+    description: str = ""
+    researcher_profile: str = ""
+    scholar_url: str = ""
+    delivery_mode: Literal["source_emails", "combined_report"] = "source_emails"
 
 
 # ============== Config API ==============
@@ -69,30 +267,16 @@ class RunRequest(BaseModel):
 @app.get("/api/config")
 def get_config():
     """获取当前配置"""
-    if CONFIG_FILE.exists():
-        content = CONFIG_FILE.read_text(encoding="utf-8")
-        if content.strip():
-            return json.loads(content)
-    # 返回默认配置
+    return load_config_data()
+
+
+@app.get("/api/public/meta")
+def get_public_meta():
+    config = load_config_data()
     return {
-        "provider": "openai",
-        "model": "gpt-4o-mini",
-        "base_url": "",
-        "api_key": "",
-        "temperature": 0.5,
-        "smtp_server": "",
-        "smtp_port": 465,
-        "sender": "",
-        "receiver": "",
-        "smtp_password": "",
-        "gh_languages": "all",
-        "gh_since": "daily",
-        "gh_max_repos": 30,
-        "hf_content_types": ["papers", "models"],
-        "hf_max_papers": 30,
-        "hf_max_models": 15,
-        "description": "",
-        "researcher_profile": ""
+        "github_url": GITHUB_REPO_URL,
+        "twitter_enabled": bool(config.get("x_rapidapi_key")),
+        "mail_enabled": bool(config.get("smtp_server") and config.get("sender")),
     }
 
 
@@ -100,18 +284,17 @@ def get_config():
 def save_config(config: Config):
     """保存配置"""
     try:
-        # 确保目录存在
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-        # 使用 model_dump (Pydantic v2) 或 dict (Pydantic v1)
-        config_dict = config.model_dump() if hasattr(config, 'model_dump') else config.dict()
+        config_dict = config.model_dump() if hasattr(config, "model_dump") else config.dict()
+        config_dict["description"] = _normalize_multiline_text(config_dict.get("description", ""))
+        config_dict["researcher_profile"] = _normalize_multiline_text(config_dict.get("researcher_profile", ""))
+        config_dict["x_accounts"] = _normalize_multiline_text(config_dict.get("x_accounts", ""))
 
         CONFIG_FILE.write_text(
             json.dumps(config_dict, indent=2, ensure_ascii=False),
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
-        # 同时写入 .env 文件供 main.py 使用
         env_content = f"""# Auto-generated by web UI
 PROVIDER={config.provider}
 MODEL_NAME={config.model}
@@ -130,26 +313,20 @@ HF_CONTENT_TYPES={" ".join(config.hf_content_types)}
 HF_MAX_PAPERS={config.hf_max_papers}
 HF_MAX_MODELS={config.hf_max_models}
 DESCRIPTION_FILE=profiles/description.txt
+X_RAPIDAPI_KEY={config.x_rapidapi_key}
+X_RAPIDAPI_HOST={config.x_rapidapi_host}
+X_ACCOUNTS_FILE=profiles/x_accounts.txt
 """
         (PROJECT_ROOT / ".env").write_text(env_content, encoding="utf-8")
 
-        # 写入 description.txt
-        if config.description:
-            (PROJECT_ROOT / "profiles").mkdir(parents=True, exist_ok=True)
-            (PROJECT_ROOT / "profiles" / "description.txt").write_text(
-                config.description, encoding="utf-8"
-            )
-
-        # 写入 researcher_profile.md
-        if config.researcher_profile:
-            (PROJECT_ROOT / "profiles").mkdir(parents=True, exist_ok=True)
-            (PROJECT_ROOT / "profiles" / "researcher_profile.md").write_text(
-                config.researcher_profile, encoding="utf-8"
-            )
+        _write_text_file(DESCRIPTION_FILE, config.description)
+        _write_text_file(RESEARCHER_PROFILE_FILE, config.researcher_profile, delete_if_empty=True)
+        _write_text_file(TWITTER_ACCOUNTS_FILE, config.x_accounts)
 
         return {"status": "ok"}
     except Exception as e:
         import traceback
+
         print(f"保存配置失败: {e}")
         print(traceback.format_exc())
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
@@ -157,110 +334,186 @@ DESCRIPTION_FILE=profiles/description.txt
 
 # ============== Run API ==============
 
-async def run_daily_recommender(
-    sources: list[str],
-    generate_report: bool = False,
-    generate_ideas: bool = False,
-    save: bool = True
-):
+async def run_daily_recommender(req: RunRequest):
     """异步运行 daily-recommender"""
 
+    if not req.sources:
+        raise ValueError("请至少选择一个信息源。")
+
     today = datetime.now().strftime("%Y-%m-%d")
-    result_dirs = []
+    result_dirs: list[Path] = []
+    config = load_config_data()
+    temp_dir = tempfile.TemporaryDirectory(prefix="daily-recommender-web-")
+    temp_root = Path(temp_dir.name)
 
-    # 获取配置
-    config = get_config()
+    try:
+        override_description = _normalize_multiline_text(req.description)
+        scholar_url = req.scholar_url.strip()
+        receiver = req.receiver.strip() or str(config.get("receiver", "")).strip()
 
-    cmd = [
-        sys.executable,
-        "main.py",
-        "--sources", *sources,
-        "--num_workers", "4",
-        "--provider", config.get("provider", "openai"),
-        "--model", config.get("model", "gpt-4o-mini"),
-        "--base_url", config.get("base_url", ""),
-        "--api_key", config.get("api_key", ""),
-        "--temperature", str(config.get("temperature", 0.5)),
-    ]
+        effective_description = override_description or _normalize_multiline_text(config.get("description", ""))
+        report_profile_path: Path | None = None
+        description_path: Path | None = None
+        researcher_profile_path: Path | None = None
+        profile_urls: list[str] = []
 
-    if save:
-        cmd.append("--save")
-    if generate_report:
-        cmd.append("--generate_report")
-        result_dirs.append(HISTORY_DIR / "reports" / today)
-    if generate_ideas:
-        cmd.append("--generate_ideas")
-        cmd.extend(["--researcher_profile", "profiles/researcher_profile.md"])
-        result_dirs.append(HISTORY_DIR / "ideas" / today)
+        if scholar_url:
+            profile_urls.append(scholar_url)
+            yield {"type": "log", "message": "正在读取 Google Scholar / 主页信息..."}
+            profile_text, _ = await asyncio.to_thread(build_profile_text_from_urls, profile_urls)
+            profile_text = _normalize_multiline_text(profile_text)
+            if profile_text:
+                effective_description = "\n\n".join(
+                    part
+                    for part in [
+                        effective_description,
+                        "[Optional profile URL context]\n" + profile_text,
+                    ]
+                    if part
+                ).strip()
+                yield {"type": "log", "message": "已附加 Scholar 画像信息到本次请求。"}
+            else:
+                yield {"type": "log", "message": "Scholar 页面未返回可用文本，将继续使用输入兴趣。"}
 
-    # GitHub 参数
-    cmd.extend([
-        "--gh_languages", config.get("gh_languages", "all"),
-        "--gh_since", config.get("gh_since", "daily"),
-        "--gh_max_repos", str(config.get("gh_max_repos", 30)),
-    ])
+        if effective_description:
+            description_path = temp_root / "description.txt"
+            description_path.write_text(effective_description + "\n", encoding="utf-8")
+            report_profile_path = description_path
 
-    # HuggingFace 参数
-    cmd.extend([
-        "--hf_content_type", *config.get("hf_content_types", ["papers", "models"]),
-        "--hf_max_papers", str(config.get("hf_max_papers", 30)),
-        "--hf_max_models", str(config.get("hf_max_models", 15)),
-    ])
+        if req.researcher_profile.strip():
+            researcher_profile_path = temp_root / "researcher_profile.md"
+            researcher_profile_path.write_text(
+                _normalize_multiline_text(req.researcher_profile) + "\n",
+                encoding="utf-8",
+            )
+            report_profile_path = researcher_profile_path
+        elif req.generate_ideas:
+            base_profile = _normalize_multiline_text(config.get("researcher_profile", "")) or effective_description
+            if not base_profile:
+                raise ValueError("生成研究想法前，请先配置研究者画像或在本次请求中填写兴趣描述。")
+            researcher_profile_path = temp_root / "researcher_profile.md"
+            researcher_profile_path.write_text(base_profile + "\n", encoding="utf-8")
 
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=str(PROJECT_ROOT)
-    )
+        should_generate_report = req.generate_report or req.delivery_mode == "combined_report"
+        should_send_combined_report = req.delivery_mode == "combined_report"
 
-    while True:
-        line = await process.stdout.readline()
-        if not line:
-            break
-        text = line.decode("utf-8", errors="replace").rstrip()
-        yield {"type": "log", "message": text}
+        if should_send_combined_report and not receiver:
+            raise ValueError("请输入接收邮件的邮箱地址。")
 
-    await process.wait()
+        if receiver and (not config.get("smtp_server") or not config.get("sender")):
+            raise ValueError("服务器还没有配置发件邮箱，请先在 /admin 完成 SMTP 配置。")
 
-    # 收集生成的文件
-    generated_files = []
-    for src in sources:
-        result_dirs.append(HISTORY_DIR / src / today)
+        cmd = [
+            sys.executable,
+            "main.py",
+            "--sources",
+            *req.sources,
+            "--num_workers",
+            "4",
+            "--provider",
+            config.get("provider", "openai"),
+            "--model",
+            config.get("model", "gpt-4o-mini"),
+            "--base_url",
+            config.get("base_url", ""),
+            "--api_key",
+            config.get("api_key", ""),
+            "--temperature",
+            str(config.get("temperature", 0.5)),
+        ]
 
-    for dir_path in result_dirs:
-        if dir_path.exists():
-            # 读取 Markdown 文件
-            for md_file in dir_path.glob("*.md"):
-                content = md_file.read_text(encoding="utf-8")
-                generated_files.append({
-                    "type": "markdown",
-                    "name": md_file.name,
-                    "content": content,
-                    "source": dir_path.parent.name
-                })
-            # 读取 JSON 文件
-            json_dir = dir_path / "json"
-            if json_dir.exists():
-                items = []
-                for json_file in json_dir.glob("*.json"):
-                    data = json.loads(json_file.read_text(encoding="utf-8"))
-                    items.append(data)
-                if items:
-                    generated_files.append({
-                        "type": "json_list",
-                        "name": f"{dir_path.parent.name}_items",
-                        "items": items,
-                        "source": dir_path.parent.name
-                    })
+        if req.save:
+            cmd.append("--save")
+        if description_path:
+            _append_arg(cmd, "--description", description_path)
 
-    yield {
-        "type": "complete",
-        "exit_code": process.returncode,
-        "success": process.returncode == 0,
-        "files": generated_files,
-        "date": today
-    }
+        if should_generate_report:
+            cmd.append("--generate_report")
+            result_dirs.append(HISTORY_DIR / "reports" / today)
+            if report_profile_path:
+                _append_arg(cmd, "--report_profile", report_profile_path)
+            if should_send_combined_report:
+                cmd.extend(["--send_report_email", "--skip_source_emails"])
+
+        if req.generate_ideas:
+            if not researcher_profile_path:
+                raise ValueError("生成研究想法需要研究者画像。")
+            cmd.extend(["--generate_ideas", "--researcher_profile", str(researcher_profile_path)])
+            result_dirs.append(HISTORY_DIR / "ideas" / today)
+
+        _append_arg(cmd, "--smtp_server", config.get("smtp_server"))
+        _append_arg(cmd, "--smtp_port", config.get("smtp_port"))
+        _append_arg(cmd, "--sender", config.get("sender"))
+        _append_arg(cmd, "--receiver", receiver)
+        _append_arg(cmd, "--sender_password", config.get("smtp_password"))
+
+        cmd.extend([
+            "--gh_languages",
+            config.get("gh_languages", "all"),
+            "--gh_since",
+            config.get("gh_since", "daily"),
+            "--gh_max_repos",
+            str(config.get("gh_max_repos", 30)),
+        ])
+
+        hf_types = config.get("hf_content_types", ["papers", "models"]) or ["papers", "models"]
+        cmd.extend([
+            "--hf_content_type",
+            *hf_types,
+            "--hf_max_papers",
+            str(config.get("hf_max_papers", 30)),
+            "--hf_max_models",
+            str(config.get("hf_max_models", 15)),
+        ])
+
+        if "twitter" in req.sources:
+            _append_arg(cmd, "--x_rapidapi_key", config.get("x_rapidapi_key"))
+            _append_arg(cmd, "--x_rapidapi_host", config.get("x_rapidapi_host"))
+            _append_arg(cmd, "--x_accounts_file", TWITTER_ACCOUNTS_FILE)
+
+            should_run_oneoff_discovery = bool(override_description or profile_urls)
+            if should_run_oneoff_discovery:
+                discovery_persist_file = temp_root / "x_accounts.discovered.txt"
+                cmd.extend([
+                    "--x_discover_accounts",
+                    "--x_merge_static_accounts",
+                    "--x_force_refresh_discovery",
+                    "--x_discovery_persist_file",
+                    str(discovery_persist_file),
+                ])
+                if profile_urls:
+                    cmd.extend(["--x_profile_urls", *profile_urls])
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(PROJECT_ROOT),
+        )
+
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            text = line.decode("utf-8", errors="replace").rstrip()
+            yield {"type": "log", "message": text}
+
+        await process.wait()
+
+        for src in req.sources:
+            result_dirs.append(HISTORY_DIR / src / today)
+
+        generated_files = _collect_generated_files(result_dirs)
+
+        yield {
+            "type": "complete",
+            "exit_code": process.returncode,
+            "success": process.returncode == 0,
+            "files": generated_files,
+            "date": today,
+        }
+    finally:
+        temp_dir.cleanup()
 
 
 @app.websocket("/ws/run")
@@ -269,18 +522,12 @@ async def websocket_run(websocket: WebSocket):
     await websocket.accept()
 
     try:
-        # 接收运行参数
         data = await websocket.receive_json()
         req = RunRequest(**data)
 
         await websocket.send_json({"type": "start", "message": "开始运行..."})
 
-        async for msg in run_daily_recommender(
-            sources=req.sources,
-            generate_report=req.generate_report,
-            generate_ideas=req.generate_ideas,
-            save=req.save
-        ):
+        async for msg in run_daily_recommender(req):
             await websocket.send_json(msg)
 
     except WebSocketDisconnect:
@@ -288,7 +535,7 @@ async def websocket_run(websocket: WebSocket):
     except Exception as e:
         await websocket.send_json({
             "type": "error",
-            "message": str(e)
+            "message": str(e),
         })
 
 
@@ -313,8 +560,6 @@ def get_history():
                 continue
 
             date_str = date_dir.name
-
-            # 检查是否有结果文件
             has_results = list(date_dir.glob("*.md")) or list(date_dir.glob("*.html"))
             json_files = list(date_dir.glob("json/*.json"))
 
@@ -325,10 +570,9 @@ def get_history():
                     "date": date_str,
                     "sources": [source_name.replace("_", ", ")],
                     "items": len(json_files),
-                    "path": str(date_dir.relative_to(PROJECT_ROOT))
+                    "path": str(date_dir.relative_to(PROJECT_ROOT)),
                 })
 
-    # 按日期倒序
     history.sort(key=lambda x: x["date"], reverse=True)
     return history
 
@@ -346,19 +590,19 @@ def get_results(source: str, date: str):
         "date": date,
         "markdown_files": [],
         "html_files": [],
-        "json_files": []
+        "json_files": [],
     }
 
     for f in result_dir.glob("*.md"):
         results["markdown_files"].append({
             "name": f.name,
-            "content": f.read_text(encoding="utf-8")
+            "content": f.read_text(encoding="utf-8"),
         })
 
     for f in result_dir.glob("*.html"):
         results["html_files"].append({
             "name": f.name,
-            "url": f"/api/file/{source}/{date}/{f.name}"
+            "url": f"/api/file/{source}/{date}/{f.name}",
         })
 
     json_dir = result_dir / "json"
@@ -366,7 +610,7 @@ def get_results(source: str, date: str):
         for f in json_dir.glob("*.json"):
             results["json_files"].append({
                 "name": f.name,
-                "data": json.loads(f.read_text(encoding="utf-8"))
+                "data": json.loads(f.read_text(encoding="utf-8")),
             })
 
     return results
@@ -392,13 +636,22 @@ def health_check():
 
 @app.get("/")
 def root():
-    """返回前端页面"""
-    return FileResponse(PROJECT_ROOT / "web-ui.html")
+    return FileResponse(PUBLIC_UI_FILE)
+
+
+@app.get("/public")
+def public_web_ui():
+    return FileResponse(PUBLIC_UI_FILE)
+
+
+@app.get("/admin")
+def admin_web_ui():
+    return FileResponse(ADMIN_UI_FILE)
 
 
 @app.get("/web-ui.html")
-def web_ui():
-    return FileResponse(PROJECT_ROOT / "web-ui.html")
+def legacy_admin_web_ui():
+    return FileResponse(ADMIN_UI_FILE)
 
 
 # ============== Main ==============
@@ -410,8 +663,9 @@ if __name__ == "__main__":
 ╔════════════════════════════════════════════════════════╗
 ║          Daily Recommender Web Server                  ║
 ╠════════════════════════════════════════════════════════╣
-║  API Docs: http://localhost:8080/docs                  ║
-║  Web UI:   http://localhost:8080/                      ║
+║  Public UI: http://localhost:8080/                    ║
+║  Admin UI:  http://localhost:8080/admin               ║
+║  API Docs:  http://localhost:8080/docs                ║
 ╚════════════════════════════════════════════════════════╝
     """)
 

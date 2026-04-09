@@ -209,6 +209,7 @@ export function ControlCenter(props: {
           <button className={activeTab === "subscriptions" ? "control-tab active" : "control-tab"} onClick={() => setActiveTab("subscriptions")}>{props.copy.settings.subscriptionSettings}</button>
           <button className={activeTab === "mail" ? "control-tab active" : "control-tab"} onClick={() => setActiveTab("mail")}>{props.copy.settings.mailHostingSettings}</button>
           <button className={activeTab === "info" ? "control-tab active" : "control-tab"} onClick={() => setActiveTab("info")}>{props.copy.info.title}</button>
+          {!props.detached && <button className="control-panel-close" onClick={props.onClose} aria-label="Close"><FontAwesomeIcon icon={faXmark} /></button>}
         </div>
 
         {activeTab === "profile" ? <section className="control-section">

@@ -109,7 +109,7 @@ const DEFAULT_PROFILE: UserProfile = {
   name: "",
   receiver: "",
   focus: "",
-  avatar: "2",
+  avatar: "1",
 };
 
 const AVATARS = [
@@ -722,8 +722,8 @@ export default function AppShell() {
           title={copy.info.github}
           onClick={() => openExternalUrl(aboutInfo.github_url || meta?.github_url || DEFAULT_ABOUT_INFO.github_url)}
         >
-          <FontAwesomeIcon icon={faStar} />
           <span>{copy.info.star}</span>
+          <FontAwesomeIcon icon={faStar} />
         </button>
 
         {controlPanel === "settings" ? <ControlCenter
@@ -860,7 +860,7 @@ function normalizeUserProfile(profile: UserProfile): UserProfile {
   const validAvatars = new Set<AvatarId>(["0", "1", "2", "3"]);
   return {
     ...profile,
-    avatar: validAvatars.has(profile.avatar) ? profile.avatar : "2",
+    avatar: validAvatars.has(profile.avatar) ? profile.avatar : "1",
   };
 }
 

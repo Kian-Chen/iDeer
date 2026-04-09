@@ -209,7 +209,7 @@ export const COPY = {
       website: "个人网站",
       githubId: "GitHub ID",
       github: "打开 GitHub 仓库",
-      star: "Star",
+      star: "帮我点个star吧 求求你了",
       version: "桌面原型",
       stack: "Tauri + React + Python",
       close: "关闭",
@@ -223,7 +223,7 @@ export const COPY = {
       language: "语言",
     },
     user: {
-      fallbackName: "你的名字",
+      fallbackName: "这倒是提醒我了",
       fallbackFocus: "设置你的研究方向",
       openProfile: "打开用户画像",
     },

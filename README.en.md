@@ -200,6 +200,22 @@ A: Yes. Override `build_eval_prompt()` and `parse_eval_response()`.
 
 ---
 
+## Acknowledgements
+
+iDeer is inspired by and built upon ideas from these excellent open-source projects:
+
+| Project | Description |
+|---------|-------------|
+| [daily-arXiv-ai-enhanced](https://github.com/dw-dengwei/daily-arXiv-ai-enhanced) | AI-powered daily arXiv crawler with summaries and GitHub Pages deployment |
+| [customize-arxiv-daily](https://github.com/JoeLeelyf/customize-arxiv-daily) | Personalized arXiv paper recommendations based on custom interest descriptions |
+| [ArxivDigest](https://github.com/AutoLLM/ArxivDigest) | Daily arXiv digest driven by natural-language research interests |
+| [zotero-arxiv-daily](https://github.com/TideDra/zotero-arxiv-daily) | arXiv paper discovery informed by your Zotero library context |
+| [cv-arxiv-daily](https://github.com/Vincentqyw/cv-arxiv-daily) | Automated daily updates for Computer Vision arXiv papers |
+
+Thanks to these projects for their contributions to academic information automation.
+
+---
+
 <div align="center">
 
 **If this deer saves you time, give it a star**

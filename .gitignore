@@ -16,6 +16,7 @@ env/
 .vscode/
 *.swp
 *.swo
+node_modules/
 
 # History/cache data
 history/

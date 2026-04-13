@@ -7,9 +7,19 @@ import requests
 from bs4 import BeautifulSoup
 
 
+def _normalize_show_value(max_results: int) -> int:
+    valid_values = [25, 50, 100, 250, 500, 1000, 2000]
+    for value in valid_values:
+        if max_results <= value:
+            return value
+    return valid_values[-1]
+
+
 def get_arxiv_new_papers(category: str = "cs.CV", max_results: int = 100) -> list[dict]:
-    url = f"https://arxiv.org/list/{category}/new?skip=0&show={max_results}"
+    show = _normalize_show_value(max_results)
+    url = f"https://arxiv.org/list/{category}/new?skip=0&show={show}"
     response = requests.get(url, timeout=30)
+    response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
     try:
@@ -48,7 +58,7 @@ def get_arxiv_new_papers(category: str = "cs.CV", max_results: int = 100) -> lis
             "abstract_url": abs_url,
         })
 
-    return papers
+    return papers[:max_results]
 
 
 def fetch_papers_for_categories(

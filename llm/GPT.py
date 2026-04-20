@@ -47,6 +47,8 @@ class GPT():
                     request_kwargs["extra_body"] = {"reasoning_effort": "low"}
                 result = self.client.chat.completions.create(**request_kwargs)
                 response_message = self._normalize_response_text(result.choices[0].message.content)
+                if not response_message or not response_message.strip():
+                    raise ValueError("Empty response content from API")
                 return response_message
             except Exception as e:
                 if i < retries - 1:
@@ -69,12 +71,18 @@ class GPT():
             return text
 
         stripped = text.strip()
-        if not stripped.startswith("```"):
-            return stripped
 
-        lines = stripped.splitlines()
-        if len(lines) >= 3 and lines[-1].strip() == "```":
-            return "\n".join(lines[1:-1]).strip()
+        # Remove thinking tags (reasoning models like MiniMax-M2.7 include <think>...</think>)
+        if "</think>" in stripped:
+            after_thinking = stripped.split("</think>", 1)[1].strip()
+            if after_thinking:
+                stripped = after_thinking
+
+        # Remove markdown code fences
+        if stripped.startswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 3 and lines[-1].strip() == "```":
+                stripped = "\n".join(lines[1:-1]).strip()
 
         return stripped
 

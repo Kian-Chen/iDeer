@@ -5,6 +5,7 @@ Use GPT Series Models
 from openai import OpenAI
 import time
 
+
 class GPT():
     def __init__(self, model, base_url, api_key):
         self.model_name = model
@@ -14,7 +15,7 @@ class GPT():
         self._init_model()
 
     def _init_model(self):
-        self.client = OpenAI(base_url= self.base_url, api_key=self.api_key)
+        self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
 
     def build_prompt(self, question):
         message = []
@@ -26,7 +27,7 @@ class GPT():
             }
         )
 
-        prompt =  [
+        prompt = [
             {
                 "role": "user",
                 "content": message
@@ -49,9 +50,10 @@ class GPT():
                 return response_message
             except Exception as e:
                 if i < retries - 1:
-                    print(f"Failed to call the API {i+1}/{retries}, will retry after {wait_time} seconds.")
+                    actual_wait = min(2 + i, 10)
+                    print(f"Failed to call the API {i+1}/{retries}, will retry after {actual_wait} seconds.")
                     print(e)
-                    time.sleep(wait_time)
+                    time.sleep(actual_wait)
                     continue
                 else:
                     print(f"Failed to call the API after {retries} attempts.")
@@ -76,6 +78,7 @@ class GPT():
             return "\n".join(lines[1:-1]).strip()
 
         return stripped
+
 
 if __name__ == "__main__":
     # Test GPT

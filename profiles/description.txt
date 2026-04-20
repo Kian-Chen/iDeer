@@ -1,18 +1,21 @@
-I am a researcher focused on AI Agent Safety. My core research interests span the following areas:
+I am a researcher focused on AI for Science, Explainable AI, and novel neural architectures. My core research interests span the following areas:
 
-1. Agent Safety — Safety of LLM-based autonomous agents, including unsafe tool use, unintended side effects, goal misgeneralization, out-of-distribution behavior, and safe exploration in agentic workflows.
+1. AI for Science — Application of AI/ML methods to scientific domains including physics, chemistry, biology, earth science, ocean science, and climate modeling; AI-driven scientific discovery and hypothesis generation.
 
-2. Hallucination — Factual errors, confabulation, and grounding failures in LLMs and agents; detection, mitigation, and evaluation of hallucination; retrieval-augmented generation as a countermeasure.
+2. XAI (Explainable AI) — Interpretability methods for understanding deep learning models; post-hoc explanation techniques (SHAP, LIME, attention visualization); intrinsic interpretability; XAI for scientific models.
 
-3. Misalignment — Value misalignment, reward hacking, specification gaming, Goodhart's Law, and failures of RLHF/RLAIF; scalable oversight, weak-to-strong generalization, and alignment evaluation.
+3. XAI for Time Series — Explainability methods specifically for temporal data; interpreting forecasting models; explaining predictions in EEG, financial, climate, and sensor data; counterfactual explanations for time series.
 
-4. Deception — LLM deceptive behavior, sycophancy, sandbagging, hidden reasoning, strategic manipulation, and dishonesty in agents; detecting and eliciting deceptive behavior.
+4. XAI for EEG / Brain Signals — Explainability techniques for electroencephalography and brain signal analysis; interpreting neural networks on BCI applications; causal analysis of brain-related data.
 
-5. Codex / Code Agents — Safety of code-generating models and autonomous coding agents (e.g., OpenHands, SWE-agent, Codex); vulnerabilities introduced by agent-generated code, backdoors, and code-level attacks.
+5. XAI for Earth & Ocean — Explainable AI for earth observation, climate modeling, and ocean science; interpreting satellite data models; causal reasoning for environmental science; climate attribution.
 
-6. Prompt Optimization & Attacks — Adversarial prompts, jailbreaks, prompt injection, automated red-teaming, and prompt optimization methods (e.g., APE, GCG, AutoDAN); defenses and robustness to prompt-level attacks.
+6. Non-Transformer Architectures — Novel neural network architectures beyond transformers, including state space models (Mamba, S4), mixture of experts,KANs, and other efficient architectures; alternatives to attention mechanisms; architectures suitable for scientific/time-series data.
 
-I am NOT interested in: computer vision safety, hardware security, network intrusion detection, classical ML robustness unrelated to LLMs.
+7. New LLM Architectures — Emerging language model designs including sparse models, hybrid architectures, and efficient inference; architectures optimized for scientific text and multimodal scientific data.
 
-IMPORTANT: When generating the summary, please organize the content BY EACH of my six interest directions above.
-For each direction, list the most relevant papers/repos/items separately with a brief explanation of why each is relevant to my research. Prioritize items that sit at the intersection of multiple directions (e.g., deceptive agents, misaligned code agents, prompt-based attacks on agent safety).
+8. Time Series Analysis — Advanced forecasting models, anomaly detection, and temporal reasoning; combination of deep learning with classical statistical methods for time series.
+
+I am NOT interested in: computer vision (non-scientific), hardware security, network intrusion detection, purely theoretical ML without empirical scientific application, NLP tasks unrelated to scientific text.
+
+IMPORTANT: When generating the summary, please organize the content BY EACH of my research directions above. For each direction, list the most relevant papers/repos/items separately with a brief explanation of why each is relevant to my research. Prioritize items that bridge multiple directions (e.g., explainable transformers for scientific discovery, non-autoregressive models for time series forecasting).

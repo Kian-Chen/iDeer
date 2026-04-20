@@ -99,7 +99,10 @@ class ArxivSource(BaseSource):
         response = response.strip("```").strip("json").strip()
         if not response:
             raise ValueError("Empty response from LLM")
-        data = json.loads(response)
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON from LLM: {e}")
         return {
             "title": item["title"],
             "arxiv_id": item.get("arxiv_id", ""),

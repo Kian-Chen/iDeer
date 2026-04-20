@@ -156,7 +156,10 @@ class HuggingFaceSource(BaseSource):
         response = response.strip("```").strip("json").strip()
         if not response:
             raise ValueError("Empty response from LLM")
-        data = json.loads(response)
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON from LLM: {e}")
 
         if item.get("_hf_type") == "paper":
             return {

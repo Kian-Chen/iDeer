@@ -1,56 +1,41 @@
 # Researcher Profile
 
-## Research Directions
+## Research Interests
+
+I care about XAI for Science, Time Series, XAI for Time Series, XAI for EEG, AI for Earth, AI for Ocean, XAI for Earth, XAI for Ocean.
+
+## Detailed Directions
 
 ### Primary Areas
-1. **AI for Science** — Application of AI/ML methods to scientific domains including physics, chemistry, biology, earth science, ocean science, and climate modeling; AI-driven scientific discovery and hypothesis generation.
-2. **XAI (Explainable AI)** — Interpretability methods for understanding deep learning models; post-hoc explanation techniques (SHAP, LIME, attention visualization); intrinsic interpretability; XAI for scientific models.
-3. **XAI for Time Series** — Explainability methods specifically for temporal data; interpreting forecasting models; explaining predictions in EEG, financial, climate, and sensor data; counterfactual explanations for time series.
-4. **XAI for EEG / Brain Signals** — Explainability techniques for electroencephalography and brain signal analysis; interpreting neural networks on BCI applications; causal analysis of brain-related data.
-5. **XAI for Earth & Ocean** — Explainable AI for earth observation, climate modeling, and ocean science; interpreting satellite data models; causal reasoning for environmental science; climate attribution.
-6. **Non-Transformer Architectures** — Novel neural network architectures beyond transformers, including state space models (Mamba, S4), mixture of experts, KANs, and other efficient architectures; alternatives to attention mechanisms; architectures suitable for scientific/time-series data.
-7. **New LLM Architectures** — Emerging language model designs including sparse models, hybrid architectures, and efficient inference; architectures optimized for scientific text and multimodal scientific data.
-8. **Time Series Analysis** — Advanced forecasting models, anomaly detection, and temporal reasoning; combination of deep learning with classical statistical methods for time series.
+1. **XAI for Science** — Interpretability and explainability methods applied to scientific domains; understanding what scientific AI models learn and why.
+2. **Time Series** — Forecasting, anomaly detection, and temporal reasoning; deep learning and classical methods for sequential data.
+3. **XAI for Time Series** — Explaining time series models; counterfactual explanations for forecasting; interpreting temporal predictions in EEG, financial, climate, and sensor data.
+4. **XAI for EEG / Brain Signals** — Explainable AI for electroencephalography and BCI; interpreting neural networks on brain signal analysis.
+5. **AI for Earth & Ocean** — AI applied to earth observation, climate modeling, ocean science; environmental modeling and prediction.
+6. **XAI for Earth & Ocean** — Explainable AI for environmental science; interpreting satellite data models; causal reasoning for climate and ocean science.
 
 ### Sub-directions
 - Causal inference for scientific discovery
 - Physics-informed neural networks
-- Scientific multimodal learning (text + data + images)
-- Federated learning for scientific data
+- Scientific multimodal learning
 - Uncertainty quantification in scientific ML
-
-## Active Projects
-
-| Project | Description | Status |
-|---------|-------------|--------|
-| (Your active projects here) | | |
-
-## Publications
-
-<!--
-TODO: Populate from Google Scholar.
-To auto-fetch, provide your Google Scholar profile URL and run:
-  python -c "from pipeline.idea_generator import fetch_scholar_publications; fetch_scholar_publications('SCHOLAR_ID')"
--->
-
-## Target Venues
-
-- **Top ML**: NeurIPS, ICML, ICLR
-- **Science/AI**: Nature, Science, Nature ML/AI
-- **Time Series**: KDD, NeurIPS (Time Series workshop), ICML
-- **XAI**: AIES, FAccT, CHI
-
-## Research Style & Preferences
-
-- **Science-driven**: Prefer ideas with clear scientific motivation and empirical validation
-- **Interpretability-first**: Interested in methods that explain WHY a model makes a prediction
-- **Cross-domain**: Connecting XAI + time series + scientific domains
-- **Novel architectures**: Skeptical of pure scale; interested in fundamentally different approaches
 
 ## NOT Interested In
 
-- Pure agent/robotics research without scientific application
-- Standard NLP tasks (summarization, translation) unrelated to science
+- Agent/robotics research
+- Standard NLP tasks (summarization, translation) without scientific application
 - Computer vision without scientific context
 - Hardware security, network intrusion detection
 - Classical ML without scientific application
+
+## Target Venues
+
+- Science/AI: Nature, Science, Nature ML/AI
+- Time Series: KDD, NeurIPS (Time Series workshop), ICML
+- XAI: AIES, FAccT, CHI
+
+## Research Style
+
+- Science-driven and interpretability-first
+- Prefer methods that explain WHY a prediction is made
+- Interested in fundamentally different approaches beyond pure scale

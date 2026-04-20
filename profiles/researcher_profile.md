@@ -2,28 +2,28 @@
 
 ## Research Interests
 
-I care about XAI for Science, Time Series, XAI for Time Series, XAI for EEG, AI for Earth, AI for Ocean, XAI for Earth, XAI for Ocean.
+I care about Time Series, XAI for Time Series, AI for Earth, AI for Ocean, XAI for Earth, XAI for Ocean.
 
 ## Detailed Directions
 
 ### Primary Areas
-1. **XAI for Science** — Interpretability and explainability methods applied to scientific domains; understanding what scientific AI models learn and why.
-2. **Time Series** — Forecasting, anomaly detection, and temporal reasoning; deep learning and classical methods for sequential data.
-3. **XAI for Time Series** — Explaining time series models; counterfactual explanations for forecasting; interpreting temporal predictions in EEG, financial, climate, and sensor data.
-4. **XAI for EEG / Brain Signals** — Explainable AI for electroencephalography and BCI; interpreting neural networks on brain signal analysis.
-5. **AI for Earth & Ocean** — AI applied to earth observation, climate modeling, ocean science; environmental modeling and prediction.
-6. **XAI for Earth & Ocean** — Explainable AI for environmental science; interpreting satellite data models; causal reasoning for climate and ocean science.
+1. **Time Series** — Forecasting, anomaly detection, and temporal reasoning; deep learning and classical methods for sequential data; applications to scientific and environmental domains.
+2. **XAI for Time Series** — Explainability for temporal models; counterfactual explanations for forecasting; interpreting predictions in financial, climate, and sensor data.
+3. **AI for Earth** — AI applied to earth observation, climate modeling, and environmental science; geospatial data analysis.
+4. **AI for Ocean** — AI for ocean science; marine data modeling; underwater and ocean monitoring systems.
+5. **XAI for Earth** — Explainable AI for earth science; interpreting satellite data models; climate attribution and environmental prediction.
+6. **XAI for Ocean** — Explainable AI for ocean science; interpreting marine model outputs; causal reasoning for ocean dynamics.
 
 ### Sub-directions
-- Causal inference for scientific discovery
-- Physics-informed neural networks
-- Scientific multimodal learning
-- Uncertainty quantification in scientific ML
+- Causal inference for environmental science
+- Physics-informed neural networks for earth/ocean
+- Remote sensing and satellite data analysis
+- Uncertainty quantification in environmental ML
 
 ## NOT Interested In
 
 - Agent/robotics research
-- Standard NLP tasks (summarization, translation) without scientific application
+- Standard NLP tasks without scientific application
 - Computer vision without scientific context
 - Hardware security, network intrusion detection
 - Classical ML without scientific application

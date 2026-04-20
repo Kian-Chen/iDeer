@@ -98,7 +98,7 @@ def main() -> int:
         "SMTP_PASSWORD": smtp_password,
         "DESCRIPTION_FILE": "profiles/description.txt",
         "DAILY_SOURCES": daily_sources,
-        "NUM_WORKERS": read_env("IDEER_NUM_WORKERS", "6"),
+        "NUM_WORKERS": read_env("IDEER_NUM_WORKERS", "2"),
         "GENERATE_REPORT": "1",
         "SEND_REPORT_EMAIL": "1" if send_report_email else "0",
         "SKIP_SOURCE_EMAILS": "1",

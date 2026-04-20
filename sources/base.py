@@ -159,7 +159,7 @@ class BaseSource(ABC):
         except OSError as e:
             print(f"[{self.name}] Fetch cache write failed: {e}")
 
-    def process_item(self, item: dict, max_retries: int = 5) -> dict | None:
+    def process_item(self, item: dict, max_retries: int = 15) -> dict | None:
         from core.cache_utils import atomic_write_json, safe_read_json
 
         retry_count = 0
@@ -200,7 +200,9 @@ class BaseSource(ABC):
                 if retry_count == max_retries:
                     print(f"Max retries reached, skipping {cache_id}")
                     return None
-                time.sleep(1)
+                wait_time = min(2 ** retry_count, 30)
+                print(f"[{self.name}] Retrying in {wait_time}s...")
+                time.sleep(wait_time)
         return None
 
     def _mirror_to_history(self, cache_id: str, result: dict):

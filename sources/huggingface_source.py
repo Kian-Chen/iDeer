@@ -153,7 +153,9 @@ class HuggingFaceSource(BaseSource):
         return prompt
 
     def parse_eval_response(self, item: dict, response: str) -> dict:
-        response = response.strip("```").strip("json")
+        response = response.strip("```").strip("json").strip()
+        if not response:
+            raise ValueError("Empty response from LLM")
         data = json.loads(response)
 
         if item.get("_hf_type") == "paper":

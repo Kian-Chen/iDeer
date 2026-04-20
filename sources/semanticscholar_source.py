@@ -156,7 +156,9 @@ class SemanticScholarSource(BaseSource):
 直接返回上述 JSON 格式，无需任何额外解释。"""
 
     def parse_eval_response(self, item: dict, response: str) -> dict:
-        response = response.strip("```").strip("json")
+        response = response.strip("```").strip("json").strip()
+        if not response:
+            raise ValueError("Empty response from LLM")
         data = json.loads(response)
         return {
             "title": item["title"],

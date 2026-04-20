@@ -50,10 +50,9 @@ class GPT():
                 return response_message
             except Exception as e:
                 if i < retries - 1:
-                    actual_wait = min(2 + i, 10)
-                    print(f"Failed to call the API {i+1}/{retries}, will retry after {actual_wait} seconds.")
+                    print(f"Failed to call the API {i+1}/{retries}, will retry after {wait_time} seconds.")
                     print(e)
-                    time.sleep(actual_wait)
+                    time.sleep(wait_time)
                     continue
                 else:
                     print(f"Failed to call the API after {retries} attempts.")
